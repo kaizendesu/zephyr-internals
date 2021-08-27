@@ -34,10 +34,6 @@
 
 #### \_Cstart (kernel/init.c:349)
 
-```txt
-
-```
-
 #### prepare\_multithreading (kernel/init.c:249)
 
 ```txt
@@ -194,6 +190,60 @@ _Cstart
 
 
 322: No-op for x86 machines.
+
+331: Disables interrupts via irq_lock and calls _Swap.
+```
+
+#### \_arch\_irq\_lock (include/arch/x86/arch.h:408)
+
+```txt
+_Cstart
+    prepare_multithreading
+    _sys_device_do_config_level
+    sys_rand32_get
+    switch_to_main_thread
+        irq\_lock
+            _arch_irq_lock <-- Here
+
+410: Disables interrupts and assigns the current thread's eflags to
+     the key local variable.
+
+414: Returns key.
+```
+
+#### \_do\_irq\_lock (include/arch/x86/asm\_inline\_gcc.h:42)
+
+```txt
+_Cstart
+    prepare_multithreading
+    _sys_device_do_config_level
+    sys_rand32_get
+    switch_to_main_thread
+        irq\_lock
+            _arch_irq_lock
+                _do_irq_lock <-- Here
+
+46-53: Pushes eflags, clears the interrupt bit, and pops the eflags into
+       the key variable.
+
+55: Returns key.
+```
+
+#### \_int\_latency\_start (kernel/int\_latency\_bench.c:53)
+
+```txt
+_Cstart
+    prepare_multithreading
+    _sys_device_do_config_level
+    sys_rand32_get
+    switch_to_main_thread
+        irq\_lock
+            _arch_irq_lock
+            _int_latency_start <-- Here
+
+56-59: Retrieves the system time and assigns it to int_locked_timestamp.
+
+60: Increments int_locked_unlocked_nest to 1.
 ```
 
 #### \_Swap (kernel/include/nano\_internal.h:64)
@@ -206,7 +256,80 @@ _Cstart
     switch_to_main_thread
         _Swap <-- Here
 
-I will do this later.
+74: Calls __swap by passing key as an argument, where key is the
+    current thread's eflags.
+```
+
+#### \_check\_stack\_sentinel (kernel/thread.c:153)
+
+```txt
+_Cstart
+    prepare_multithreading
+    _sys_device_do_config_level
+    sys_rand32_get
+    switch_to_main_thread
+        _Swap
+            _check_stack_sentinel <-- Here
+
+157-162: Returns early if the stack's thread is not allowed to run
+         (hence no reason to check its sentinel).
+
+165-169: Restores the stack's sentinel if it was corrupted and generates
+         the _NANO_ERR_STACK_CHK_FAIL exception.
+```
+
+#### \_update\_time\_slice\_before\_swap (kernel/sched.c:423)
+
+```txt
+_Cstart
+    prepare_multithreading
+    _sys_device_do_config_level
+    sys_rand32_get
+    switch_to_main_thread
+        _Swap
+            _check_stack_sentinel
+            _update_time_slice_before_swap <-- Here
+
+426-428: Returns early if the next thread is NOT time slicing.
+
+430: Obtains the thread's remaining time slice.
+
+432-439: Sets the time slice to MIN(remaining, _time_slice_duration).
+
+443: Sets _time_slice_elapsed to 0 for the new thread.
+```
+
+#### \_get\_remaining\_program\_time ()
+
+```txt
+_Cstart
+    prepare_multithreading
+    _sys_device_do_config_level
+    sys_rand32_get
+    switch_to_main_thread
+        _Swap
+            _check_stack_sentinel
+            _update_time_slice_before_swap
+                _get_remaining_program_time <-- Here
+
+I will do later since this is hardware dependent.
+```
+
+#### \_set\_time ()
+
+```txt
+_Cstart
+    prepare_multithreading
+    _sys_device_do_config_level
+    sys_rand32_get
+    switch_to_main_thread
+        _Swap
+            _check_stack_sentinel
+            _update_time_slice_before_swap
+                _get_remaining_program_time
+                _set_time <-- Here
+
+I will do later since this is hardware dependent.
 ```
 
 #### \_\_swap (arch/x86/core/swap.S:89)
@@ -220,11 +343,120 @@ _Cstart
         _Swap
             __swap <-- Here
 
-I will do this later.
+94-100: Stores swap timestamp values in __start_swap_time.
+
+118: Assigns the base of _kernel to %edi.
+
+120-122: Pushes %esi, %ebx, and %ebp.
+
+131: Pushes -EAGAIN.
+
+141: Logs the context switch into the logger ring buffer.
+
+143: Assigns the ready queue's cached process to %eax.
+
+308: Assigns the cached process, _main, to _kernel.current.
+
+312: Sets %esp to _main's stack pointer.
+
+317-324: Recovers the _main's %ebp, %ebx, %esi, and %edi
+         registers.
+
+337: Pushes __swap's key argument to the stack.
+
+343: Stops counting the time spent with interrupts disabled.
+
+351: Restores previous thread's eflags.
+
+371: Returns to the _main's entry point.
+```
+
+#### \_int\_latency\_stop (kernel/int\_latency\_bench.c:72)
+
+```txt
+_Cstart
+    prepare_multithreading
+    _sys_device_do_config_level
+    sys_rand32_get
+    switch_to_main_thread
+        _Swap
+            __swap
+                _int_latency_stop <-- Here
+
+76: Obtains the current system time.
+
+86: Calculates the elapsed time since calling _int_latency_start and
+    assigns it to the delta variable.
+
+95-99: Decrement benchmark overhead delay from delta if necessary.
+
+102-107: Updates int_locked_latency_max and int_locked_latency_min if
+         necessary.
+
+111: Sets int_locked_timestamp to zero.
+```
+
+#### \_sys\_k\_event\_logger\_context\_switch (subsys/logging/kernel\_event\_logger.c:78)
+
+```txt
+_Cstart
+    prepare_multithreading
+    _sys_device_do_config_level
+    sys_rand32_get
+    switch_to_main_thread
+        _Swap
+            __swap
+                _sys_k_event_logger_context_switch <-- Here
+
+89: Sets the event_id to KERNEL_EVENT_LOGGER_CONTEXT_SWITCH_EVENT_ID,
+    which is equal to 0x001.
+
+91-92: Returns early if the event_id doesn't require logging.
+
+96-97: Returns early if the logger ring buffer is NULL.
+
+100-101: Returns early if the current thread is the _collector_coop_thread.
+
+104-105: Obtains the timestamp data for the context switch.
+
+124-125: Adds the event message to the ring buffer and signals the
+         sync semaphore to alert the kernel that there are event
+         messages to read.
+```
+
+####  event\_logger\_put (subsys/logging/event\_logger.c:23)
+
+```txt
+_Cstart
+    prepare_multithreading
+    _sys_device_do_config_level
+    sys_rand32_get
+    switch_to_main_thread
+        _Swap
+            __swap
+                _sys_k_event_logger_context_switch
+                    _sys_event_logger_put_non_preemptible
+                        event_logger_put <-- Here
+
+30: Locks interrupts.
+
+32: Writes the event_data argument to the logger ring buffer logger->ring_buf.
+
+40: Unlocks interrupts.
 ```
 
 #### \_main (kernel/init.c:189)
 
 ```txt
-I will do this later.
-````
+_Cstart
+    ...
+    switch_to_main_thread
+_main <-- Here
+
+195-198: Calls the device initialization functions for system configuration
+         levels POST_KERNEL and APPLICATION.
+
+213: Prints the boot banner.
+
+226: Calls the application's main function to conclude system initialization.
+```

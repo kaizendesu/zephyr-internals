@@ -93,5 +93,36 @@ zsock_bind
     net_context_get_type
     net_context_recv <-- Here
 
-I will do this later.
+```
+
+#### recv\_udp (subsys/net/ip/net\_context.c:2298)
+
+```txt
+zsock_bind
+    net_context_bind
+    net_context_get_type
+    net_context_recv
+        recv_udp <-- Here
+
+2312-2315: Unregisters the context's connection handler if it already
+           exists and sets it to NULL.
+
+2334-2339: Copies the context structure's address to local_addr->sin_addr
+           if the structure has one set.
+
+2341: Assigns the context structure's port to lport.
+
+2347-2355: Registers the connection.
+```
+
+#### net\_conn\_register (subsys/net/ip/connection.c:555)
+
+```txt
+zsock_bind
+    net_context_bind
+    net_context_get_type
+    net_context_recv
+        recv_udp
+            net_conn_register <-- Here
+
 ```

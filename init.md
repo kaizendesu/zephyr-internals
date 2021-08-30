@@ -126,7 +126,7 @@ _Cstart
 
 39-45: Initializes the timeout queue's thread and wait_q to NULL.
 
-50: Initialies the timeout queue's handler function.
+50: Initialies the timeout queue's handler function to NULL.
 ```
 
 #### \_new\_thread\_internal (arch/x86/core/thread.c:51)

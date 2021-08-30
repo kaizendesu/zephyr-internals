@@ -1,4 +1,4 @@
-## Walkthrough of Zephyr 1.9.2's _zsock_bind_ System call
+## Walkthrough of Zephyr 1.9.2's _zsock\_bind_ System call
 
 ### Source Code Commentary
 

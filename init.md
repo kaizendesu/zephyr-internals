@@ -141,6 +141,20 @@ _Cstart
 I will do this later.
 ```
 
+#### thread\_monitor\_init (kernel/include/kernel\_structs.h:190)
+
+```txt
+_Cstart
+    prepare_multithreading
+        _new_thread
+            _new_thread_init
+            _new_thread_internal
+                thread_monitor_init <-- Here
+
+195-196: Initializes the kernel's active thread list by inserting
+         the _main thread.
+```
+
 #### kernel\_arch\_init (arch/x86/include/kernel\_arch\_func.h:35)
 
 ```txt

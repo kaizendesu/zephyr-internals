@@ -93,6 +93,8 @@ zsock_bind
     net_context_get_type
     net_context_recv <-- Here
 
+2382: Calls recv_udp to set up a connection handler for the
+      connection.
 ```
 
 #### recv\_udp (subsys/net/ip/net\_context.c:2298)
@@ -107,12 +109,47 @@ zsock_bind
 2312-2315: Unregisters the context's connection handler if it already
            exists and sets it to NULL.
 
-2334-2339: Copies the context structure's address to local_addr->sin_addr
-           if the structure has one set.
+2334-2339: Copies the net_context structure's address to local_addr->sin_addr
+           if the net_context structure has one set.
 
 2341: Assigns the context structure's port to lport.
 
 2347-2355: Registers the connection.
+```
+
+#### net\_conn\_unregister (subsys/net/ip/connection.c:348)
+
+```txt
+zsock_bind
+    net_context_bind
+    net_context_get_type
+    net_context_recv
+        recv_udp
+            net_conn_unregister <-- Here
+
+352-354: Returns -EINVAL early if conn is out of bounds of the conns array
+         (subsys/net/ip/connection.c:48).
+
+356-358: Returns -ENOENT if the connection is not in use.
+
+360: Removes the connection from the connection cache.
+
+365: Bzeroes the connection.
+```
+
+#### cache\_remove (subsys/net/ip/connection.c:325)
+
+```txt
+zsock_bind
+    net_context_bind
+    net_context_get_type
+    net_context_recv
+        recv_udp
+            net_conn_unregister
+                cache_remove <-- Here
+
+329-339: Searches the conn_cache for an entry whose index matches
+         the connection we want to remove and sets its index to -1.
 ```
 
 #### net\_conn\_register (subsys/net/ip/connection.c:555)
@@ -123,6 +160,75 @@ zsock_bind
     net_context_get_type
     net_context_recv
         recv_udp
+            net_conn_unregister
             net_conn_register <-- Here
 
+567: Checks if an identical connection handler already exists and assigns
+     its index to i.
+
+569-573: Returns -EALREADY if an identical connection handler was found.
+
+634-636: Copies the local_addr structure to conns[i].local_addr.
+
+638-642: Sets the rank field with either NET_RANK_LOCAL_UNSPEC_ADDR or
+         NET_RANK_LOCAL_SPEC_ADDR.
+
+650: Sets the NET_CONN_LOCAL_ADDR_SET flag for the connection.
+
+666-670: Assigns local_port to the connection's port and sets
+         NET_RANK_LOCAL_PORT to rank.
+
+672-676: Initializes the rest of the connection structure.
+
+700-704: Assigns the address of the connection to the handle argument
+         and returns 0.
+```
+
+#### find\_conn\_handler (subsys/net/ip/connection.c:446)
+
+```txt
+zsock_bind
+    net_context_bind
+    net_context_get_type
+    net_context_recv
+        recv_udp
+            net_conn_unregister
+            net_conn_register
+                find_conn_handler <-- Here
+
+
+455-457: Skips connections that are not in use.
+
+459-461: Skips connections with a different protocol.
+
+502-504: Skips connections for local addresses that do not have the
+         NET_CONN_LOCAL_ADDR_SET flag set.
+
+539-547: Skips connections that do not share the remote port or local
+         port.
+
+495-499: Skips the connection if the NET_CONN_REMOTE_ADDR_SET flag is set
+         and the remote_addr argument is NULL.
+
+533-537: Skips the connection if the NET_CONN_LOCAL_ADDR_SET flag is set
+         and the local_addr argument is NULL.
+
+549: Returns the index of the matching connection.
+```
+
+#### cache\_clear (subsys/net/ip/connection.c:276)
+
+```txt
+zsock_bind
+    net_context_bind
+    net_context_get_type
+    net_context_recv
+        recv_udp
+            net_conn_unregister
+            net_conn_register
+                find_conn_handler
+                    cache_clear <-- Here
+
+280-283: Sets the index of every cache entry to -1 and sets the negative
+         cache hit value to zero.
 ```
